@@ -8,9 +8,14 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@mdi/font": "^7.2.96",
     "core-js": "^3.8.3",
+    "ol": "^7.4.0",
+    "ol-ext": "^4.0.8",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3",
+    "vue3-openlayers": "^0.5.1",
+    "vuetify": "~3.3.1",
     "vuex": "^4.0.0"
   },
   "devDependencies": {
