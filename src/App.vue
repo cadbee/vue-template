@@ -1,9 +1,15 @@
 <template>
-  <nav>
-    <router-link to="/">Home</router-link> |
-    <router-link to="/about">About</router-link>
-  </nav>
-  <router-view/>
+  <v-app>
+    <v-main>
+      <v-layout class="fill-height d-flex flex-column" :fluid="true">
+        <nav>
+          <router-link to="/">Home</router-link> |
+          <router-link to="/about">About</router-link>
+        </nav>
+        <router-view />
+      </v-layout>
+    </v-main>
+  </v-app>
 </template>
 
 <style>
@@ -28,3 +34,5 @@ nav a.router-link-exact-active {
   color: #42b983;
 }
 </style>
+<script setup>
+</script>
