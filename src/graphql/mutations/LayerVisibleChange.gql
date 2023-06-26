@@ -1,0 +1,9 @@
+mutation changeLayerVisibility($id: ID!){
+    changeLayerVisibility(id: $id){
+        id
+        title
+        visible
+        current
+        content
+    }
+}

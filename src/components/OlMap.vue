@@ -1,5 +1,41 @@
+<template>
+  <ol-map
+    ref="map"
+    :loadTilesWhileAnimating="true"
+    :loadTilesWhileInteracting="true"
+    class="h-100 w-100"
+  >
+    <ol-view
+      ref="view"
+      :rotation="rotation"
+      :projection="projection"
+    />
+
+    <ol-tile-layer
+      v-for="layer in bingMapsLayers"
+      :base-layer="true"
+      :title="layer.imagerySet"
+      :visible="layer.isVisible"
+      :key="layer.imagerySet"
+    >
+      <ol-source-bingmaps :apiKey="bingMapsKey" :imagerySet="layer.imagerySet" culture="ru"/>
+    </ol-tile-layer>
+  </ol-map>
+  <input
+    style="display: none"
+    ref="uploadGeoJSONInput"
+    type="file"
+    @change="uploadGeoJSON"
+  />
+</template>
+
 <script setup>
-import {onMounted, ref} from 'vue';
+import {
+  onMounted, ref, watchEffect,
+} from 'vue';
+import {useStore} from 'vuex';
+import {useMutation, useQuery} from '@vue/apollo-composable';
+
 import LayerSwitcherImage from 'ol-ext/control/LayerSwitcherImage';
 import Bar from 'ol-ext/control/Bar';
 import EditBar from 'ol-ext/control/EditBar';
@@ -11,6 +47,9 @@ import {FullScreen, Rotate, Zoom} from 'ol/control';
 import {Vector as VectorLayer} from 'ol/layer';
 import {Vector as SourceVector} from 'ol/source';
 import {GeoJSON} from 'ol/format';
+import {
+  Icon, Style,
+} from 'ol/style';
 
 const projection = ref('EPSG:3857');
 const rotation = ref(0);
@@ -44,26 +83,144 @@ const bingMapsLayers = [
     imagerySet: 'CanvasGray',
   },
 ];
+
+const layersQuery = require('@/graphql/queries/Layers.gql');
+
+const store = useStore();
+
+const {mutate: changeLayerVisibleMutation} = useMutation(require('@/graphql/mutations/LayerVisibleChange.gql'), {
+  update(cache, {data: {changeLayerVisibility}}) {
+    cache.modify({
+      fields: {
+        layers(existingLayers = []) {
+          const newLayers = cache.readQuery({query: layersQuery}).layers;
+          store.commit('layers/setLayers', newLayers);
+          return [...existingLayers];
+        },
+      },
+    });
+  },
+  onQueryUpdated(observableQuery) {
+    return false;
+  },
+});
+
+watchEffect(() => {
+  const {visibleLayers} = store.state.layers;
+  if (map.value) {
+    map.value.map.getAllLayers().forEach((layer) => {
+      if (visibleLayers.includes(layer.get('id'))) {
+        layer.setVisible(true);
+      } else if (layer instanceof VectorLayer) {
+        layer.setVisible(false);
+      }
+    });
+  }
+});
+
+let editBar = null;
+const toggleMove = new Toggle({
+  html: '<i class="mdi-cursor-move mdi v-icon notranslate v-theme--light v-icon--size-small" aria-hidden="true" style="cursor: pointer;"></i>',
+});
+
+watchEffect(() => {
+  const {current} = store.state.layers;
+  if (map.value) {
+    const currentLayer = map.value.map.getAllLayers().find((el) => el.get('id') === current);
+    map.value.map.removeControl(editBar);
+    if (currentLayer) {
+      const editBarOptions = {
+        source: currentLayer.getSource(),
+        interactions: {
+          Info: false,
+        },
+      };
+      editBar = new EditBar(editBarOptions);
+      editBar.getInteraction('DrawPoint').on('drawstart', (event) => {
+        const {feature} = event;
+        const newStyle = new Style({
+          image: new Icon({
+            src: './signs/flag-variant-outline.svg',
+            opacity: 1,
+            scale: 2,
+          }),
+        });
+        feature.setStyle(newStyle);
+      });
+      editBar.getInteraction('DrawPoint').on('change:active', (event) => {
+        const pickedInteraction = event.target;
+        if (pickedInteraction.getActive()) {
+          const newStyle = new Style({
+            image: new Icon({
+              src: './signs/flag-variant-outline.png',
+              opacity: 1,
+              scale: 0.1,
+            }),
+          });
+          pickedInteraction.getOverlay().setStyle(newStyle);
+        }
+      });
+      toggleMove.setActive(true);
+      editBar.addControl(toggleMove);
+      map.value.map.addControl(editBar);
+    }
+  }
+});
+
 onMounted(() => {
   // Remove default controls
   map.value.map.getControls().clear();
 
-  const drawingVector = new SourceVector({
-    features: [],
-    wrapX: false,
+  const {onResult} = useQuery(layersQuery);
+
+  onResult((queryResult) => {
+    store.commit('layers/setLoading', queryResult.loading);
+    console.log('Query updating');
+    if (queryResult?.data?.layers) {
+      store.commit('layers/setLayers', queryResult.data.layers);
+      const {layers} = store.state.layers;
+      for (const layer of layers) {
+        const mapLayersIds = map.value.map.getAllLayers().map((el) => el.get('id'));
+        if (!mapLayersIds.includes(layer.id)) {
+          let geojson;
+          let newVector;
+          try {
+            geojson = JSON.parse(layer.content);
+            newVector = new SourceVector({
+              features: new GeoJSON().readFeatures(geojson),
+            });
+          } catch (e) {
+            newVector = new SourceVector();
+          }
+          const newLayer = new VectorLayer({
+            title: layer.title,
+            visible: layer.visible,
+          });
+          if (layer.current) {
+            store.commit('layers/setCurrentLayer', layer.id);
+          }
+          newLayer.set('id', layer.id);
+          newLayer.setVisible(layer.visible);
+          newLayer.setSource(newVector);
+          map.value.map.addLayer(newLayer);
+        }
+      }
+    }
   });
-  const drawingLayer = new VectorLayer({
-    title: 'Custom Drawings',
-    source: drawingVector,
-  });
-  let vectorToSave = drawingVector;
-  map.value.map.addLayer(drawingLayer);
-  console.log(map.value.map.getLayers());
+
   const saveGeoJSONControl = new Button({
     html: '<i class="mdi-download mdi v-icon notranslate v-theme--light v-icon--size-small" aria-hidden="true" style="cursor: pointer"></i>',
     title: 'Save as GeoJSON',
     handleClick: () => {
-      const geoJson = new GeoJSON().writeFeatures(vectorToSave.getFeatures());
+      const layerToSave = map.value.map.getLayers().getArray().find((el) => el.get('id') === store.state.layers.current);
+      const vectorFeatures = layerToSave.getSource().getFeatures();
+      const features = [];
+      vectorFeatures.forEach((feature) => {
+        feature.setProperties({style: feature.getStyle()});
+        features.push(feature);
+      });
+      console.log(layerToSave.getStyle());
+      const geoJson = new GeoJSON().writeFeatures(features);
       const a = document.createElement('a');
       const file = new Blob([JSON.stringify(geoJson)], {type: 'application/json'});
       a.href = URL.createObjectURL(file);
@@ -93,45 +250,14 @@ onMounted(() => {
   barControl.setPosition('top-left');
   map.value.map.addControl(barControl);
 
-  let editBar = new EditBar({
-    source: drawingVector,
-    interactions: {
-      Info: false,
-    },
-  });
-  const toggleMove = new Toggle({
-    active: true,
-    html: '<i class="mdi-cursor-move mdi v-icon notranslate v-theme--light v-icon--size-small" aria-hidden="true" style="cursor: pointer;"></i>',
-  });
-  editBar.addControl(toggleMove);
-  editBar.setPosition('top');
-  map.value.map.addControl(editBar);
-
   const layerSwitchImageControl = new LayerSwitcherImage();
   layerSwitchImageControl.on('layer:visible', (event) => {
     const {layer} = event;
     if (layer instanceof VectorLayer) {
-      const editBarOptions = {
-        source: undefined,
-        interactions: {
-          Info: false,
-        },
-      };
-      map.value.map.removeControl(editBar);
-      if (layer.getVisible()) {
-        editBarOptions.source = layer.getSource();
-      } else {
-        const visibleVectorLayer = map.value.map.getAllLayers().find((item) => (item instanceof VectorLayer) && item.getVisible());
-        if (visibleVectorLayer !== undefined) {
-          editBarOptions.source = visibleVectorLayer.getSource();
-        }
+      const storeLayer = store.state.layers.layers.find((el) => el.id === layer.get('id'));
+      if (storeLayer && storeLayer.visible !== layer.getVisible()) {
+        changeLayerVisibleMutation({id: storeLayer.id});
       }
-      if (editBarOptions.source !== undefined) {
-        editBar = new EditBar(editBarOptions);
-        editBar.addControl(toggleMove);
-        map.value.map.addControl(editBar);
-      }
-      vectorToSave = editBarOptions.source;
     }
   });
   map.value.map.on('loadend', () => {
@@ -145,50 +271,32 @@ const uploadGeoJSON = (event) => {
   const reader = new FileReader();
   reader.onload = (res) => {
     const geojson = JSON.parse(res.target.result);
-    map.value.map.addLayer(new VectorLayer({
+    const newVectorLayer = new VectorLayer({
       title: 'Imported',
       source: new SourceVector({
         features: new GeoJSON().readFeatures(geojson),
       }),
-    }));
+    });
+    newVectorLayer.getSource().forEachFeature((feature) => {
+      const featureProperties = feature.getProperties();
+      if ('style' in featureProperties && featureProperties.style !== null) {
+        feature.setGeometry(featureProperties.geometry);
+        const newStyle = new Style({
+          image: new Icon({
+            src: featureProperties.style.image_.iconImage_.src_,
+            opacity: featureProperties.style.image_.opacity_,
+            scale: featureProperties.style.image_.scale_,
+          }),
+        });
+        feature.setStyle(newStyle);
+      }
+    });
+    map.value.map.addLayer(newVectorLayer);
   };
   reader.readAsText(geoJsonFile);
 };
 </script>
 
-<template>
-  <v-container class="fill-height">
-    <ol-map
-      ref="map"
-      :loadTilesWhileAnimating="true"
-      :loadTilesWhileInteracting="true"
-      style="height: 100%; width: 100%"
-    >
-      <ol-view
-        ref="view"
-        :rotation="rotation"
-        :projection="projection"
-      />
-
-      <ol-tile-layer
-        v-for="layer in bingMapsLayers"
-        :base-layer="true"
-        :title="layer.imagerySet"
-        :visible="layer.isVisible"
-        :key="layer.imagerySet"
-      >
-        <ol-source-bingmaps :apiKey="bingMapsKey" :imagerySet="layer.imagerySet" />
-      </ol-tile-layer>
-    </ol-map>
-  </v-container>
-  <input
-    style="display: none"
-    ref="uploadGeoJSONInput"
-    type="file"
-    @change="uploadGeoJSON"
-  />
-</template>
-
-<style scoped>
+<style>
 
 </style>

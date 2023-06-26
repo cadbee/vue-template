@@ -1,0 +1,13 @@
+#import '@/graphql/fragments/SignFragment.gql'
+
+query signs {
+    signs {
+        ...SignFragment
+        signs {
+            ...SignFragment
+            signs {
+                ...SignFragment
+            }
+        }
+    }
+}

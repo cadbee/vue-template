@@ -34,10 +34,14 @@ module.exports = {
     'no-trailing-spaces': 'off',
     'vuejs-accessibility/form-control-has-label': 'off',
     'prefer-const': 'warn',
+    'import/no-extraneous-dependencies': 'off',
+    'no-restricted-syntax': 'off',
+    'no-underscore-dangle': 'off',
   },
   settings: {
     ...createAliasSetting({
       '@': `${path.resolve(__dirname, './src')}`,
+      '@assets': `${path.resolve(__dirname, './src/assets')}`,
     }),
   },
 };

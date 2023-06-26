@@ -1,0 +1,9 @@
+mutation addLayer($input: LayerInput!){
+    addLayer(input: $input) {
+        id
+        title
+        visible
+        current
+        content
+    }
+}

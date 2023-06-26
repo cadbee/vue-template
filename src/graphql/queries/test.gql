@@ -1,7 +1,8 @@
-query allLayers{
-    allLayers {
-        id
-        title
-        visible
+query characters {
+    characters {
+        results {
+            name
+            status
+        }
     }
 }

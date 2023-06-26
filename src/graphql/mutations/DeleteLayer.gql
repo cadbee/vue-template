@@ -1,0 +1,9 @@
+mutation deleteLayer($id: ID!) {
+    deleteLayer(id: $id){
+        id
+        title
+        visible
+        content
+        current
+    }
+}

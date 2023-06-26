@@ -1,0 +1,9 @@
+mutation changeCurrentLayer($id: ID!, $value: Boolean!){
+    changeCurrentLayer(id: $id, value: $value) {
+        id
+        title
+        visible
+        current
+        content
+    }
+}

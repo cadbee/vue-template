@@ -1,0 +1,7 @@
+fragment LayerUpdateVisibleFragment on Layer {
+    id
+    visible
+    content
+    current
+    title
+}

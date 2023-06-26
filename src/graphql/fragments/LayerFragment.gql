@@ -1,0 +1,7 @@
+fragment LayerFragment on Layer {
+    id
+    title
+    visible
+    current
+    content
+}

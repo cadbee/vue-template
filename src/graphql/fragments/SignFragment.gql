@@ -1,0 +1,4 @@
+fragment SignFragment on Sign {
+    id
+    title
+}
