@@ -43,7 +43,7 @@
       <v-card class="h-auto w-100 ma-1 ml-2 d-flex flex-column">
         <v-card-title class="text-left pa-2">Классификатор</v-card-title>
 
-        <AppRecursiveList :items="signs" :children-field-name="'signs'"/>
+        <AppRecursiveList :items="signs" :children-field-name="'signs'" @click:selected="selectSign"/>
       </v-card>
     </v-skeleton-loader>
 
@@ -66,6 +66,14 @@ onResult((data) => {
 });
 
 const signs = computed(() => store.state.signs.signs);
+
+const selectSign = (event) => {
+  if (event.value) {
+    store.commit('signs/setActiveSign', event.id);
+  } else {
+    store.commit('signs/setActiveSign', '');
+  }
+};
 </script>
 
 <style scoped>

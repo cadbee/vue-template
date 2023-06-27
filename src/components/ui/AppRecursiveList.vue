@@ -1,14 +1,18 @@
 <template>
-  <v-list v-model:opened="open">
+  <v-list
+    density="compact"
+    @click:select="(e) => emit('click:selected', e)"
+  >
     <AppRecursiveListItem v-for="item in items" :item="item" :children-field-name="childrenFieldName" :key="item.id"/>
   </v-list>
 </template>
 
 <script setup>
 import AppRecursiveListItem from '@/components/ui/AppRecursiveListItem.vue';
-import {ref} from 'vue';
+import {defineEmits} from 'vue';
 
-const open = ref([]);
+const emit = defineEmits(['click:selected']);
+
 const props = defineProps({
   items: {
     type: Array,

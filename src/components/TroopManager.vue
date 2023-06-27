@@ -2,12 +2,27 @@
   <v-card class="h-auto d-flex flex-column ma-1">
     <v-card-title class="text-left pa-2">Свои войска</v-card-title>
 
-    <AppRecursiveList :items="items" :children-field-name="'items'"/>
+    <AppRecursiveList
+      :items="items"
+      :children-field-name="'items'"
+      @click:selected="selectTroop"
+    />
   </v-card>
 </template>
 
 <script setup>
+import {useStore} from 'vuex';
 import AppRecursiveList from '@/components/ui/AppRecursiveList.vue';
+
+const store = useStore();
+
+const selectTroop = (event) => {
+  if (event.value) {
+    store.commit('troops/setActiveTroop', event.id);
+  } else {
+    store.commit('troops/setActiveTroop', '');
+  }
+};
 
 const items = [
   {

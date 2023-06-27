@@ -1,10 +1,8 @@
-import {apolloClient} from '@/plugins/vue-apollo';
-import signs from '@/graphql/queries/Signs.gql';
-
 export default {
   namespaced: true,
   state: {
     signs: [],
+    activeSignId: '',
   },
   getters: {
     getSigns(state) {
@@ -14,6 +12,9 @@ export default {
   mutations: {
     setSigns(state, signsList) {
       state.signs = signsList;
+    },
+    setActiveSign(state, signId) {
+      state.activeSignId = signId;
     },
   },
   actions: {

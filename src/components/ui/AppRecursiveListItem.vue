@@ -5,7 +5,7 @@
     </template>
     <AppRecursiveListItem v-for="item in item[childrenFieldName]" :key="item.id" :item="item" :children-field-name="childrenFieldName"/>
   </v-list-group>
-  <v-list-item v-else class="text-left" :title="item.title"/>
+  <v-list-item v-else class="text-left" :title="item.title" :value="item.id"/>
 </template>
 
 <script setup>
