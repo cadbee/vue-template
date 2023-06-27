@@ -152,9 +152,9 @@ watchEffect(() => {
         if (pickedInteraction.getActive()) {
           const newStyle = new Style({
             image: new Icon({
-              src: './signs/flag-variant-outline.png',
+              src: './signs/flag-variant-outline.svg',
               opacity: 1,
-              scale: 0.1,
+              scale: 2,
             }),
           });
           pickedInteraction.getOverlay().setStyle(newStyle);
