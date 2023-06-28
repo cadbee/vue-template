@@ -1,0 +1,13 @@
+#import '@/graphql/fragments/TroopFragment.gql'
+
+query troops {
+    troops {
+        ...TroopFragment
+        troops {
+            ...TroopFragment
+            troops {
+                ...TroopFragment
+            }
+        }
+    }
+}

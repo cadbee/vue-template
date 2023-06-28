@@ -2,7 +2,7 @@ export default {
   namespaced: true,
   state: {
     troops: [],
-    activeTroopId: '',
+    activeTroopId: undefined,
   },
   getters: {
     getTroops(state) {
@@ -14,6 +14,7 @@ export default {
       state.troops = troopsList;
     },
     setActiveTroop(state, troopId) {
+      console.log('Active troop ID: ', troopId);
       state.activeTroopId = troopId;
     },
   },

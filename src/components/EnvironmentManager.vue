@@ -2,8 +2,8 @@
   <v-card class="d-flex flex-column ma-1">
     <v-card-title class="text-left pa-2">Менеджер обстановок</v-card-title>
 
-    <v-card-actions class="pa-0 ma-0">
-      <v-row class="flex-wrap h-auto w-100 justify-space-around">
+    <v-card-actions class="pa-0 ma-0 justify-center">
+      <v-btn-group class="flex-wrap h-auto justify-space-around">
         <v-btn
           class="ml-0"
           min-height="30"
@@ -33,7 +33,7 @@
         <v-btn class="ml-0" min-height="30" title="???" rounded="0" icon>
           <v-icon>mdi-file-document-arrow-right-outline</v-icon>
         </v-btn>
-      </v-row>
+      </v-btn-group>
     </v-card-actions>
     <v-card-actions class="pa-2" style="height: 30px;">
       <v-btn

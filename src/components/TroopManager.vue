@@ -1,28 +1,36 @@
 <template>
-  <v-card class="h-auto d-flex flex-column ma-1">
-    <v-card-title class="text-left pa-2">Свои войска</v-card-title>
+  <v-skeleton-loader class="w-100" :loading="loading" type="article">
+    <v-card class="h-auto d-flex flex-column ma-1  w-100">
+      <v-card-title class="text-left pa-2">Свои войска</v-card-title>
 
-    <AppRecursiveList
-      :items="items"
-      :children-field-name="'items'"
-      @click:selected="selectTroop"
-    />
-  </v-card>
+      <AppRecursiveList
+        :items="troops"
+        :children-field-name="'troops'"
+        @click:selected="selectTroop"
+      />
+    </v-card>
+  </v-skeleton-loader>
 </template>
 
 <script setup>
 import {useStore} from 'vuex';
 import AppRecursiveList from '@/components/ui/AppRecursiveList.vue';
+import {useQuery} from '@vue/apollo-composable';
+import {computed} from 'vue';
 
 const store = useStore();
 
-const selectTroop = (event) => {
-  if (event.value) {
-    store.commit('troops/setActiveTroop', event.id);
-  } else {
-    store.commit('troops/setActiveTroop', '');
-  }
+const selectTroop = (selectedId) => {
+  store.commit('troops/setActiveTroop', selectedId);
 };
+
+const {onResult, loading} = useQuery(require('@/graphql/queries/Troops.gql'));
+
+onResult((data) => {
+  store.commit('troops/setTroops', data.data?.troops ?? []);
+});
+
+const troops = computed(() => store.state.troops.troops);
 
 const items = [
   {
@@ -84,16 +92,16 @@ const items = [
         ],
       },
       {
-        id: '2200',
+        id: '22000',
         title: 'SubTitle 2',
         items: [
           {
-            id: '2210',
+            id: '22100',
             title: 'SubSubTitle 2',
             items: [],
           },
           {
-            id: '2220',
+            id: '22200',
             title: 'SubSubTitle 2',
             items: [],
           },

@@ -31,7 +31,7 @@
 
 <script setup>
 import {
-  onMounted, ref, watchEffect,
+  onMounted, ref, watchEffect, computed,
 } from 'vue';
 import {useStore} from 'vuex';
 import {useMutation, useQuery} from '@vue/apollo-composable';
@@ -48,7 +48,8 @@ import {Vector as VectorLayer} from 'ol/layer';
 import {Vector as SourceVector} from 'ol/source';
 import {GeoJSON} from 'ol/format';
 import {
-  Icon, Style,
+  Fill,
+  Icon, Stroke, Style, Circle,
 } from 'ol/style';
 
 const projection = ref('EPSG:3857');
@@ -87,6 +88,55 @@ const bingMapsLayers = [
 const layersQuery = require('@/graphql/queries/Layers.gql');
 
 const store = useStore();
+const activeSignType = computed(() => store.state.signs.activeSignType);
+const activeTroopId = computed(() => store.state.troops.activeTroopId);
+const mode = computed(() => store.state.signs.mode);
+
+const featureStyles = {
+  DrawPoint: new Style({
+    image: new Icon({
+      src: './signs/flag-variant-outline.svg',
+      opacity: 1,
+      scale: 2,
+    }),
+  }),
+  DrawLine: new Style({
+    stroke: new Stroke({
+      color: 'red',
+      width: 4,
+    }),
+    image: new Circle({
+      radius: 5,
+      fill: new Fill({
+        color: 'red',
+      }),
+    }),
+  }),
+  DrawPolygon: new Style({
+    stroke: new Stroke({
+      color: 'green',
+      width: 4,
+    }),
+    image: new Circle({
+      radius: 5,
+      fill: new Fill({
+        color: 'green',
+      }),
+    }),
+  }),
+  DrawRegular: new Style({
+    stroke: new Stroke({
+      color: 'blue',
+      width: 4,
+    }),
+    image: new Circle({
+      radius: 5,
+      fill: new Fill({
+        color: 'blue',
+      }),
+    }),
+  }),
+};
 
 const {mutate: changeLayerVisibleMutation} = useMutation(require('@/graphql/mutations/LayerVisibleChange.gql'), {
   update(cache, {data: {changeLayerVisibility}}) {
@@ -104,6 +154,20 @@ const {mutate: changeLayerVisibleMutation} = useMutation(require('@/graphql/muta
     return false;
   },
 });
+
+const resetStyles = () => {
+  if (map.value) {
+    const mapLayers = map.value.map.getAllLayers();
+    mapLayers.forEach((layer) => {
+      if (layer instanceof VectorLayer) {
+        const layerFeatures = layer.getSource().getFeatures();
+        layerFeatures.forEach((feature) => {
+          feature.setStyle(featureStyles[feature.getProperties().type]);
+        });
+      }
+    });
+  }
+};
 
 watchEffect(() => {
   const {visibleLayers} = store.state.layers;
@@ -127,8 +191,11 @@ watchEffect(() => {
   const {current} = store.state.layers;
   if (map.value) {
     const currentLayer = map.value.map.getAllLayers().find((el) => el.get('id') === current);
-    map.value.map.removeControl(editBar);
-    if (currentLayer) {
+    if (editBar) {
+      map.value.map.removeControl(editBar);
+      editBar = null;
+    }
+    if (currentLayer instanceof VectorLayer) {
       const editBarOptions = {
         source: currentLayer.getSource(),
         interactions: {
@@ -136,34 +203,64 @@ watchEffect(() => {
         },
       };
       editBar = new EditBar(editBarOptions);
-      editBar.getInteraction('DrawPoint').on('drawstart', (event) => {
-        const {feature} = event;
-        const newStyle = new Style({
-          image: new Icon({
-            src: './signs/flag-variant-outline.svg',
-            opacity: 1,
-            scale: 2,
-          }),
-        });
-        feature.setStyle(newStyle);
-      });
-      editBar.getInteraction('DrawPoint').on('change:active', (event) => {
-        const pickedInteraction = event.target;
-        if (pickedInteraction.getActive()) {
-          const newStyle = new Style({
-            image: new Icon({
-              src: './signs/flag-variant-outline.svg',
-              opacity: 1,
-              scale: 2,
-            }),
-          });
-          pickedInteraction.getOverlay().setStyle(newStyle);
-        }
-      });
       toggleMove.setActive(true);
       editBar.addControl(toggleMove);
       map.value.map.addControl(editBar);
     }
+  }
+});
+
+watchEffect(() => {
+  resetStyles();
+  if (activeSignType.value && activeTroopId.value && mode.value === 'Draw') {
+    if (editBar) {
+      const interaction = editBar.getInteraction(activeSignType.value);
+      if (interaction) {
+        if (interaction.getOverlay) {
+          interaction.on('change:active', () => {
+            interaction?.getOverlay()?.setStyle(featureStyles[activeSignType.value]);
+          });
+        }
+        interaction.setActive(true);
+        interaction.on('drawstart', (event) => {
+          const {feature} = event;
+          feature.setStyle(featureStyles[activeSignType.value]);
+          feature.setProperties({troopId: activeTroopId.value, type: activeSignType.value});
+        });
+      }
+    }
+  } else if (mode.value === 'Search' && map.value) {
+    toggleMove.setActive(true);
+    const mapLayers = map.value.map.getAllLayers();
+    const highlightStyle = new Style({
+      stroke: new Stroke({
+        color: 'yellow',
+        width: 6,
+      }),
+      image: new Circle({
+        radius: 5,
+        fill: new Fill({
+          color: 'yellow',
+        }),
+      }),
+    });
+    mapLayers.forEach((layer) => {
+      if (layer instanceof VectorLayer) {
+        const layerFeatures = layer.getSource().getFeatures();
+        layerFeatures.forEach((feature) => {
+          const featureProperties = feature.getProperties();
+          if (activeSignType.value && activeTroopId.value) {
+            if (featureProperties.type === activeSignType.value && featureProperties.troopId === activeTroopId.value) {
+              feature.setStyle(highlightStyle);
+            }
+          } else if (activeSignType.value && featureProperties.type === activeSignType.value) {
+            feature.setStyle(highlightStyle);
+          } else if (activeTroopId.value && featureProperties.troopId === activeTroopId.value) {
+            feature.setStyle(highlightStyle);
+          }
+        });
+      }
+    });
   }
 });
 
@@ -216,10 +313,9 @@ onMounted(() => {
       const vectorFeatures = layerToSave.getSource().getFeatures();
       const features = [];
       vectorFeatures.forEach((feature) => {
-        feature.setProperties({style: feature.getStyle()});
+        // feature.setProperties({style: feature.getStyle()});
         features.push(feature);
       });
-      console.log(layerToSave.getStyle());
       const geoJson = new GeoJSON().writeFeatures(features);
       const a = document.createElement('a');
       const file = new Blob([JSON.stringify(geoJson)], {type: 'application/json'});
@@ -279,16 +375,8 @@ const uploadGeoJSON = (event) => {
     });
     newVectorLayer.getSource().forEachFeature((feature) => {
       const featureProperties = feature.getProperties();
-      if ('style' in featureProperties && featureProperties.style !== null) {
-        feature.setGeometry(featureProperties.geometry);
-        const newStyle = new Style({
-          image: new Icon({
-            src: featureProperties.style.image_.iconImage_.src_,
-            opacity: featureProperties.style.image_.opacity_,
-            scale: featureProperties.style.image_.scale_,
-          }),
-        });
-        feature.setStyle(newStyle);
+      if ('type' in featureProperties) {
+        feature.setStyle(featureStyles[featureProperties.type]);
       }
     });
     map.value.map.addLayer(newVectorLayer);

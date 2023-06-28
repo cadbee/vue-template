@@ -2,7 +2,8 @@ export default {
   namespaced: true,
   state: {
     signs: [],
-    activeSignId: '',
+    activeSignType: undefined,
+    mode: 'Draw',
   },
   getters: {
     getSigns(state) {
@@ -13,8 +14,11 @@ export default {
     setSigns(state, signsList) {
       state.signs = signsList;
     },
-    setActiveSign(state, signId) {
-      state.activeSignId = signId;
+    setActiveSign(state, signType) {
+      state.activeSignType = signType;
+    },
+    setMode(state, newMode) {
+      state.mode = newMode;
     },
   },
   actions: {

@@ -1,0 +1,4 @@
+fragment TroopFragment on Troop {
+    id
+    title
+}
