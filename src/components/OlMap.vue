@@ -51,6 +51,7 @@ import {
   Fill,
   Icon, Stroke, Style, Circle,
 } from 'ol/style';
+import cspline from 'ol-ext/render/Cspline';
 
 const projection = ref('EPSG:3857');
 const rotation = ref(0);
@@ -100,7 +101,10 @@ const featureStyles = {
       scale: 2,
     }),
   }),
-  DrawLine: new Style({
+  DrawLine: (f) => new Style({
+    geometry: f.getGeometry().cspline({
+      normalize: true,
+    }),
     stroke: new Stroke({
       color: 'red',
       width: 4,
@@ -112,7 +116,8 @@ const featureStyles = {
       }),
     }),
   }),
-  DrawPolygon: new Style({
+  DrawPolygon: (f) => new Style({
+    geometry: f.getGeometry().cspline(),
     stroke: new Stroke({
       color: 'green',
       width: 4,
@@ -155,6 +160,23 @@ const {mutate: changeLayerVisibleMutation} = useMutation(require('@/graphql/muta
   },
 });
 
+const {mutate: updateLayerContentMutation} = useMutation(require('@/graphql/mutations/UpdateLayerContent.gql'), {
+  update(cache, {data: {updateLayer}}) {
+    cache.modify({
+      fields: {
+        layers(existingLayers = []) {
+          const newLayers = cache.readQuery({query: layersQuery}).layers;
+          store.commit('layers/setLayers', newLayers);
+          return [...existingLayers];
+        },
+      },
+    });
+  },
+  onQueryUpdated(observableQuery) {
+    return false;
+  },
+});
+
 const resetStyles = () => {
   if (map.value) {
     const mapLayers = map.value.map.getAllLayers();
@@ -166,6 +188,24 @@ const resetStyles = () => {
         });
       }
     });
+  }
+};
+
+const saveLayers = () => {
+  const {current} = store.state.layers;
+  if (map.value) {
+    const currentLayer = map.value.map.getAllLayers().find((el) => el.get('id') === current);
+    if (currentLayer instanceof VectorLayer) {
+      const sourceVector = currentLayer.getSource();
+      const vectorFeatures = sourceVector.getFeatures();
+      const geoJson = new GeoJSON().writeFeatures(vectorFeatures);
+      updateLayerContentMutation({
+        input: {
+          id: currentLayer.get('id'),
+          content: JSON.stringify(geoJson),
+        },
+      });
+    }
   }
 };
 
@@ -299,6 +339,20 @@ onMounted(() => {
           newLayer.set('id', layer.id);
           newLayer.setVisible(layer.visible);
           newLayer.setSource(newVector);
+          newLayer.getSource().forEachFeature((feature) => {
+            const featureProperties = feature.getProperties();
+            if ('type' in featureProperties) {
+              feature.setStyle(featureStyles[featureProperties.type]);
+            }
+          });
+          newVector.on('addfeature', () => {
+            console.log('Feature added');
+            saveLayers();
+          });
+          newVector.on('removefeature', () => {
+            console.log('Feature removed');
+            saveLayers();
+          });
           map.value.map.addLayer(newLayer);
         }
       }
@@ -313,7 +367,6 @@ onMounted(() => {
       const vectorFeatures = layerToSave.getSource().getFeatures();
       const features = [];
       vectorFeatures.forEach((feature) => {
-        // feature.setProperties({style: feature.getStyle()});
         features.push(feature);
       });
       const geoJson = new GeoJSON().writeFeatures(features);
